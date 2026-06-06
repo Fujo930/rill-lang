@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.0-blue?style=for-the-badge" alt="version">
+  <img src="https://img.shields.io/badge/version-0.4.0-blue?style=for-the-badge" alt="version">
   <img src="https://img.shields.io/badge/python-3.10+-green?style=for-the-badge&logo=python&logoColor=white" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge" alt="license">
-  <img src="https://img.shields.io/badge/tests-49%20passing-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="tests">
+  <img src="https://img.shields.io/badge/tests-68%20passing-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="tests">
   <img src="https://img.shields.io/badge/status-active%20dev-orange?style=for-the-badge" alt="status">
 </p>
 
@@ -258,7 +258,7 @@ rill-lang/
 | **v0.1.0** | Done | Lexer, Parser, Interpreter, Pattern matching, Pipes |
 | **v0.2.0** | Done | While loops, Break/Continue, F-strings |
 | **v0.3.0** | Done | Struct, Enum, Impl blocks, Methods |
-| **v0.4.0** | Planned | Standard library (map, filter, fold, IO) |
+| **v0.4.0** | Done | Standard library (map, filter, fold, IO, Math) |
 | **v0.5.0** | Planned | Bytecode compiler + VM |
 | **v0.6.0** | Planned | LSP server, Formatter, Linter |
 | **v0.7.0** | Planned | FFI (C, Python), JSON, HTTP |

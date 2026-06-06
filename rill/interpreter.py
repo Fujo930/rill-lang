@@ -114,36 +114,114 @@ class Interpreter:
         self._setup_builtins()
 
     def _setup_builtins(self):
-        self.global_env.set("print", RillFn(
-            params=[("value", None)],
-            body=[],  # handled specially
-            closure=self.global_env,
-            name="print",
-        ))
-        self.global_env.set("len", RillFn(
-            params=[("collection", None)],
-            body=[],
-            closure=self.global_env,
-            name="len",
-        ))
-        self.global_env.set("range", RillFn(
-            params=[("start", None), ("end", None)],
-            body=[],
-            closure=self.global_env,
-            name="range",
-        ))
+        def _builtin(name, params, fn):
+            self.global_env.set(name, RillFn(
+                params=[(p, None) for p in params],
+                body=[], closure=self.global_env, name=name,
+            ))
+            self._builtins[name] = fn
+
+        self._builtins = {}
+
+        _builtin("print", ["value"], lambda args: (print(self._to_rill_str(args[0])), None)[1])
+        _builtin("println", ["value"], lambda args: (print(self._to_rill_str(args[0])), None)[1])
+        _builtin("len", ["collection"], lambda args: len(args[0]))
+        _builtin("range", ["start", "end"], lambda args: list(range(int(args[0]), int(args[1]))))
+        _builtin("type", ["value"], lambda args: type(args[0]).__name__)
+        _builtin("str", ["value"], lambda args: self._to_rill_str(args[0]))
+        _builtin("int", ["value"], lambda args: int(args[0]))
+        _builtin("float", ["value"], lambda args: float(args[0]))
+        _builtin("bool", ["value"], lambda args: bool(args[0]))
+
+        # List operations
+        _builtin("map", ["list", "f"], lambda args: [self._apply_fn(args[1], [x]) for x in args[0]])
+        _builtin("filter", ["list", "f"], lambda args: [x for x in args[0] if self._apply_fn(args[1], [x])])
+        _builtin("fold", ["list", "f", "init"], lambda args: self._fold(args[0], args[1], args[2]))
+        _builtin("reduce", ["list", "f"], lambda args: self._reduce(args[0], args[1]))
+        _builtin("sort", ["list"], lambda args: sorted(args[0]))
+        _builtin("sort_by", ["list", "f"], lambda args: sorted(args[0], key=lambda x: self._apply_fn(args[1], [x])))
+        _builtin("reverse", ["list"], lambda args: list(reversed(args[0])))
+        _builtin("flatten", ["list"], lambda args: [item for sublist in args[0] for item in sublist])
+        _builtin("head", ["list"], lambda args: args[0][0] if args[0] else None)
+        _builtin("tail", ["list"], lambda args: args[0][1:] if args[0] else [])
+        _builtin("cons", ["elem", "list"], lambda args: [args[0]] + args[1])
+        _builtin("append", ["list", "elem"], lambda args: args[0] + [args[1]])
+        _builtin("sum", ["list"], lambda args: sum(args[0]))
+        _builtin("min", ["list"], lambda args: min(args[0]))
+        _builtin("max", ["list"], lambda args: max(args[0]))
+        _builtin("any", ["list"], lambda args: any(args[0]))
+        _builtin("all", ["list"], lambda args: all(args[0]))
+        _builtin("zip", ["a", "b"], lambda args: list(zip(args[0], args[1])))
+        _builtin("enumerate", ["list"], lambda args: list(enumerate(args[0])))
+        _builtin("contains", ["list", "elem"], lambda args: args[1] in args[0])
+        _builtin("index_of", ["list", "elem"], lambda args: args[0].index(args[1]) if args[1] in args[0] else -1)
+        _builtin("unique", ["list"], lambda args: list(dict.fromkeys(args[0])))
+        _builtin("take", ["list", "n"], lambda args: args[0][:args[1]])
+        _builtin("drop", ["list", "n"], lambda args: args[0][args[1]:])
+        _builtin("chunks", ["list", "size"], lambda args: [args[0][i:i+args[1]] for i in range(0, len(args[0]), args[1])])
+
+        # String operations
+        _builtin("split", ["s", "delim"], lambda args: args[0].split(args[1]))
+        _builtin("join", ["list", "sep"], lambda args: args[1].join(args[0]))
+        _builtin("str_contains", ["s", "sub"], lambda args: args[1] in args[0])
+        _builtin("replace", ["s", "old", "new"], lambda args: args[0].replace(args[1], args[2]))
+        _builtin("trim", ["s"], lambda args: args[0].strip())
+        _builtin("upper", ["s"], lambda args: args[0].upper())
+        _builtin("lower", ["s"], lambda args: args[0].lower())
+        _builtin("chars", ["s"], lambda args: list(args[0]))
+        _builtin("starts_with", ["s", "prefix"], lambda args: args[0].startswith(args[1]))
+        _builtin("ends_with", ["s", "suffix"], lambda args: args[0].endswith(args[1]))
+        _builtin("repeat", ["s", "n"], lambda args: args[0] * int(args[1]))
+        _builtin("reverse_str", ["s"], lambda args: args[0][::-1])
+
+        # IO
+        _builtin("read_file", ["path"], lambda args: open(args[0], "r", encoding="utf-8").read())
+        _builtin("write_file", ["path", "content"], lambda args: open(args[0], "w", encoding="utf-8").write(args[1]) or None)
+        _builtin("input", [], lambda args: input())
+        _builtin("input", ["prompt"], lambda args: input(self._to_rill_str(args[0])))
+
+        # Math
+        _builtin("abs", ["x"], lambda args: abs(args[0]))
+        _builtin("sqrt", ["x"], lambda args: args[0] ** 0.5)
+        _builtin("pow", ["base", "exp"], lambda args: args[0] ** args[1])
+        _builtin("floor", ["x"], lambda args: int(args[0]))
+        _builtin("ceil", ["x"], lambda args: -int(-args[0]))
+        _builtin("round", ["x"], lambda args: round(args[0]))
+
+        # Internal constructors
         self.global_env.set("__tuple__", RillFn(
-            params=[("*args", None)],
-            body=[],
-            closure=self.global_env,
-            name="__tuple__",
+            params=[("*args", None)], body=[], closure=self.global_env, name="__tuple__",
         ))
         self.global_env.set("__list__", RillFn(
-            params=[("*args", None)],
-            body=[],
-            closure=self.global_env,
-            name="__list__",
+            params=[("*args", None)], body=[], closure=self.global_env, name="__list__",
         ))
+
+    def _apply_fn(self, fn, args):
+        if isinstance(fn, RillFn):
+            fn_env = Environment(fn.closure)
+            for (pname, _), arg in zip(fn.params, args):
+                fn_env.set(pname, arg)
+            result = None
+            for stmt in fn.body:
+                result = self.exec_node(stmt, fn_env)
+            return result
+        if callable(fn):
+            return fn(args)
+        raise RillRuntimeError(f"Cannot call non-function: {type(fn).__name__}")
+
+    def _fold(self, lst, fn, init):
+        acc = init
+        for item in lst:
+            acc = self._apply_fn(fn, [acc, item])
+        return acc
+
+    def _reduce(self, lst, fn):
+        if not lst:
+            raise RillRuntimeError("reduce of empty list")
+        acc = lst[0]
+        for item in lst[1:]:
+            acc = self._apply_fn(fn, [acc, item])
+        return acc
 
     def run(self, program: Program) -> Any:
         result = None
@@ -239,14 +317,9 @@ class Interpreter:
             return RillVariant(callee.enum_name, callee.variant_name, tuple(args))
 
         if isinstance(callee, RillFn):
-            # Handle builtins
-            if callee.name == "print":
-                print(self._to_rill_str(args[0]))
-                return None
-            if callee.name == "len":
-                return len(args[0])
-            if callee.name == "range":
-                return list(range(int(args[0]), int(args[1])))
+            # Handle builtins via dispatch dict
+            if callee.name in self._builtins:
+                return self._builtins[callee.name](args)
             if callee.name == "__tuple__":
                 return tuple(args)
             if callee.name == "__list__":

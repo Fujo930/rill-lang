@@ -24,11 +24,13 @@
 
 ## v0.4.0 — Standard Library
 
-- [ ] **String module** — split, join, contains, replace, trim
-- [ ] **Math module** — abs, min, max, pow, sqrt
-- [ ] **List module** — map, filter, fold, sort, reverse, flatten
-- [ ] **IO module** — read_file, write_file, stdin
-- [ ] **Iterators** — lazy sequences, yield
+- [x] v0.4.0 — Standard Library
+  - List: map, filter, fold, reduce, sort, sort_by, reverse, flatten, head, tail, cons, append, sum, min, max, any, all, zip, enumerate, unique, contains, index_of, take, drop, chunks
+  - String: split, join, str_contains, replace, trim, upper, lower, chars, starts_with, ends_with, repeat, reverse_str
+  - IO: read_file, write_file, input
+  - Math: abs, sqrt, pow, floor, ceil, round
+  - Utility: type, str, int, float, bool, len, range
+  - 56 passing tests
 
 ## v0.5.0 — Compilation
 

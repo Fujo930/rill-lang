@@ -429,3 +429,80 @@ let v = Vec2 { x: 1, y: 2 }
 f"{v}"
 """
         assert run(src) == "Vec2 { x: 1, y: 2 }"
+
+
+class TestV04:
+    def test_map(self):
+        assert run('map([1, 2, 3], fn(x) { x * 2 })') == [2, 4, 6]
+
+    def test_filter(self):
+        assert run('filter([1, 2, 3, 4, 5], fn(x) { x % 2 == 0 })') == [2, 4]
+
+    def test_fold(self):
+        assert run('fold([1, 2, 3, 4, 5], fn(a, x) { a + x }, 0)') == 15
+
+    def test_reduce(self):
+        assert run('reduce([1, 2, 3, 4, 5], fn(a, x) { a + x })') == 15
+
+    def test_sort(self):
+        assert run('sort([3, 1, 4, 1, 5])') == [1, 1, 3, 4, 5]
+
+    def test_reverse(self):
+        assert run('reverse([1, 2, 3])') == [3, 2, 1]
+
+    def test_flatten(self):
+        assert run('flatten([[1, 2], [3, 4]])') == [1, 2, 3, 4]
+
+    def test_head_tail(self):
+        assert run('head([1, 2, 3])') == 1
+        assert run('tail([1, 2, 3])') == [2, 3]
+
+    def test_cons(self):
+        assert run('cons(0, [1, 2, 3])') == [0, 1, 2, 3]
+
+    def test_sum(self):
+        assert run('sum([1, 2, 3, 4, 5])') == 15
+
+    def test_contains(self):
+        assert run('contains([1, 2, 3], 2)') is True
+        assert run('contains([1, 2, 3], 99)') is False
+
+    def test_unique(self):
+        assert run('unique([1, 2, 2, 3, 3, 3])') == [1, 2, 3]
+
+    def test_take_drop(self):
+        assert run('take([1, 2, 3, 4, 5], 3)') == [1, 2, 3]
+        assert run('drop([1, 2, 3, 4, 5], 2)') == [3, 4, 5]
+
+    def test_chunks(self):
+        assert run('chunks([1, 2, 3, 4, 5], 2)') == [[1, 2], [3, 4], [5]]
+
+    def test_split_join(self):
+        assert run('split("a,b,c", ",")') == ["a", "b", "c"]
+        assert run('join(["x", "y"], "-")') == "x-y"
+
+    def test_str_ops(self):
+        assert run('upper("hello")') == "HELLO"
+        assert run('lower("WORLD")') == "world"
+        assert run('trim("  hi  ")') == "hi"
+        assert run('starts_with("Hello", "He")') is True
+        assert run('ends_with("Hello", "lo")') is True
+        assert run('replace("foo bar", "bar", "baz")') == "foo baz"
+
+    def test_math(self):
+        assert run('abs(-42)') == 42
+        assert run('sqrt(16)') == 4.0
+        assert run('pow(2, 10)') == 1024
+        assert run('floor(3.7)') == 3
+
+    def test_zip_enumerate(self):
+        result = run('zip(["a", "b"], [1, 2])')
+        assert result == [("a", 1), ("b", 2)]
+        result = run('enumerate(["x", "y"])')
+        assert result == [(0, "x"), (1, "y")]
+
+    def test_any_all(self):
+        assert run('any([0, 0, 1])') is True
+        assert run('any([0, 0, 0])') is False
+        assert run('all([1, 1, 1])') is True
+        assert run('all([1, 0, 1])') is False
