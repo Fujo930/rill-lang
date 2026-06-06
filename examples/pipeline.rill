@@ -1,0 +1,12 @@
+let double = fn(x) { x * 2 }
+let square = fn(x) { x * x }
+let add_one = fn(x) { x + 1 }
+
+let result = 5 |> double |> square |> add_one
+print(result)
+
+let greet = fn(name) { "Hello, " + name + "!" }
+let exclaim = fn(s) { s + "!!" }
+
+let msg = "World" |> greet |> exclaim
+print(msg)

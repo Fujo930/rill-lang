@@ -1,0 +1,374 @@
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import Any, Callable
+from .ast_nodes import *
+
+
+class RillRuntimeError(Exception):
+    def __init__(self, msg: str, line: int = 0):
+        super().__init__(msg)
+        self.line = line
+
+
+@dataclass
+class RillFn:
+    params: list[tuple[str, ASTNode | None]]
+    body: list[ASTNode]
+    closure: Environment
+    name: str | None = None
+
+    def __repr__(self):
+        return f"<fn {self.name or 'lambda'}>"
+
+
+class Environment:
+    def __init__(self, parent: Environment | None = None):
+        self.vars: dict[str, Any] = {}
+        self.mutables: set[str] = set()
+        self.parent = parent
+
+    def get(self, name: str) -> Any:
+        if name in self.vars:
+            return self.vars[name]
+        if self.parent:
+            return self.parent.get(name)
+        raise RillRuntimeError(f"Undefined variable: {name}")
+
+    def set(self, name: str, value: Any, mutable: bool = False):
+        self.vars[name] = value
+        if mutable:
+            self.mutables.add(name)
+
+    def update(self, name: str, value: Any):
+        if name in self.vars:
+            if name not in self.mutables:
+                raise RillRuntimeError(f"Cannot reassign immutable variable: {name}")
+            self.vars[name] = value
+            return
+        if self.parent:
+            self.parent.update(name, value)
+            return
+        raise RillRuntimeError(f"Undefined variable: {name}")
+
+    def resolve(self, name: str) -> Environment:
+        if name in self.vars:
+            return self
+        if self.parent:
+            return self.parent.resolve(name)
+        raise RillRuntimeError(f"Undefined variable: {name}")
+
+
+class Interpreter:
+    def __init__(self):
+        self.global_env = Environment()
+        self._setup_builtins()
+
+    def _setup_builtins(self):
+        self.global_env.set("print", RillFn(
+            params=[("value", None)],
+            body=[],  # handled specially
+            closure=self.global_env,
+            name="print",
+        ))
+        self.global_env.set("len", RillFn(
+            params=[("collection", None)],
+            body=[],
+            closure=self.global_env,
+            name="len",
+        ))
+        self.global_env.set("range", RillFn(
+            params=[("start", None), ("end", None)],
+            body=[],
+            closure=self.global_env,
+            name="range",
+        ))
+        self.global_env.set("__tuple__", RillFn(
+            params=[("*args", None)],
+            body=[],
+            closure=self.global_env,
+            name="__tuple__",
+        ))
+        self.global_env.set("__list__", RillFn(
+            params=[("*args", None)],
+            body=[],
+            closure=self.global_env,
+            name="__list__",
+        ))
+
+    def run(self, program: Program) -> Any:
+        result = None
+        for stmt in program.stmts:
+            result = self.exec_node(stmt, self.global_env)
+        return result
+
+    def exec_node(self, node: ASTNode, env: Environment) -> Any:
+        # Dispatch based on node type
+        method_name = f"_exec_{type(node).__name__}"
+        method = getattr(self, method_name, None)
+        if method:
+            return method(node, env)
+        raise RillRuntimeError(
+            f"Unknown node type: {type(node).__name__}",
+            getattr(node, "line", 0),
+        )
+
+    # ── Literals ─────────────────────────────────────────
+
+    def _exec_IntLit(self, node: IntLit, env: Environment) -> int:
+        return node.value
+
+    def _exec_FloatLit(self, node: FloatLit, env: Environment) -> float:
+        return node.value
+
+    def _exec_StringLit(self, node: StringLit, env: Environment) -> str:
+        return node.value
+
+    def _exec_BoolLit(self, node: BoolLit, env: Environment) -> bool:
+        return node.value
+
+    def _exec_UnitLit(self, node: UnitLit, env: Environment) -> None:
+        return None
+
+    def _exec_Ident(self, node: Ident, env: Environment) -> Any:
+        return env.get(node.name)
+
+    # ── Operators ────────────────────────────────────────
+
+    def _exec_BinaryOp(self, node: BinaryOp, env: Environment) -> Any:
+        left = self.exec_node(node.left, env)
+        right = self.exec_node(node.right, env)
+
+        op = node.op
+        if op == "+":
+            return left + right
+        if op == "-":
+            return left - right
+        if op == "*":
+            return left * right
+        if op == "/":
+            if right == 0:
+                raise RillRuntimeError("Division by zero", node.line)
+            if isinstance(left, float) or isinstance(right, float):
+                return left / right
+            return left // right
+        if op == "%":
+            return left % right
+        if op == "==":
+            return left == right
+        if op == "!=":
+            return left != right
+        if op == "<":
+            return left < right
+        if op == ">":
+            return left > right
+        if op == "<=":
+            return left <= right
+        if op == ">=":
+            return left >= right
+        if op == "&&":
+            return left and right
+        if op == "||":
+            return left or right
+        raise RillRuntimeError(f"Unknown operator: {op}", node.line)
+
+    def _exec_UnaryOp(self, node: UnaryOp, env: Environment) -> Any:
+        operand = self.exec_node(node.operand, env)
+        if node.op == "-":
+            return -operand
+        if node.op == "!":
+            return not operand
+        raise RillRuntimeError(f"Unknown unary operator: {node.op}", node.line)
+
+    # ── Expressions ──────────────────────────────────────
+
+    def _exec_CallExpr(self, node: CallExpr, env: Environment) -> Any:
+        callee = self.exec_node(node.callee, env)
+        args = [self.exec_node(a, env) for a in node.args]
+
+        if isinstance(callee, RillFn):
+            # Handle builtins
+            if callee.name == "print":
+                print(self._to_rill_str(args[0]))
+                return None
+            if callee.name == "len":
+                return len(args[0])
+            if callee.name == "range":
+                return list(range(int(args[0]), int(args[1])))
+            if callee.name == "__tuple__":
+                return tuple(args)
+            if callee.name == "__list__":
+                return list(args)
+
+            # Check arity
+            if len(args) != len(callee.params):
+                raise RillRuntimeError(
+                    f"{callee.name or 'fn'} expected {len(callee.params)} args, got {len(args)}",
+                    node.line,
+                )
+
+            # Create new scope with closure
+            fn_env = Environment(callee.closure)
+            for (param_name, _), arg in zip(callee.params, args):
+                fn_env.set(param_name, arg)
+
+            # Execute body
+            result = None
+            for stmt in callee.body:
+                result = self.exec_node(stmt, fn_env)
+                if isinstance(stmt, ReturnExpr):
+                    break
+            return result
+
+        raise RillRuntimeError(f"Cannot call non-function: {type(callee).__name__}", node.line)
+
+    def _exec_PipeExpr(self, node: PipeExpr, env: Environment) -> Any:
+        value = self.exec_node(node.left, env)
+        func = self.exec_node(node.right, env)
+
+        if isinstance(func, RillFn):
+            return self._exec_CallExpr(
+                CallExpr(node.right, [node.left], node.line), env
+            )
+        if callable(func):
+            return func(value)
+        raise RillRuntimeError(f"Cannot pipe into non-function", node.line)
+
+    def _exec_DotExpr(self, node: DotExpr, env: Environment) -> Any:
+        obj = self.exec_node(node.obj, env)
+        if isinstance(obj, dict):
+            if node.attr not in obj:
+                raise RillRuntimeError(f"Key not found: {node.attr}", node.line)
+            return obj[node.attr]
+        raise RillRuntimeError(
+            f"Cannot access attribute '{node.attr}' on {type(obj).__name__}", node.line
+        )
+
+    def _exec_IndexExpr(self, node: IndexExpr, env: Environment) -> Any:
+        obj = self.exec_node(node.obj, env)
+        idx = self.exec_node(node.index, env)
+        if isinstance(obj, (list, tuple)):
+            if isinstance(idx, int):
+                if idx < 0 or idx >= len(obj):
+                    raise RillRuntimeError(f"Index out of bounds: {idx}", node.line)
+                return obj[idx]
+        if isinstance(obj, str):
+            if isinstance(idx, int):
+                return obj[idx]
+        raise RillRuntimeError(
+            f"Cannot index into {type(obj).__name__}", node.line
+        )
+
+    # ── Statements ───────────────────────────────────────
+
+    def _exec_LetDecl(self, node: LetDecl, env: Environment) -> None:
+        value = self.exec_node(node.value, env)
+        env.set(node.name, value, node.mutable)
+        return value
+
+    def _exec_AssignExpr(self, node: AssignExpr, env: Environment) -> Any:
+        value = self.exec_node(node.value, env)
+        env.update(node.name, value)
+        return value
+
+    def _exec_FnExpr(self, node: FnExpr, env: Environment) -> RillFn:
+        return RillFn(
+            params=node.params,
+            body=node.body,
+            closure=env,
+            name=None,
+        )
+
+    def _exec_IfExpr(self, node: IfExpr, env: Environment) -> Any:
+        cond = self.exec_node(node.cond, env)
+        if cond:
+            result = None
+            for stmt in node.then_body:
+                result = self.exec_node(stmt, env)
+            return result
+        elif node.else_body:
+            result = None
+            for stmt in node.else_body:
+                result = self.exec_node(stmt, env)
+            return result
+        return None
+
+    def _exec_MatchExpr(self, node: MatchExpr, env: Environment) -> Any:
+        value = self.exec_node(node.value, env)
+        for pattern, result in node.arms:
+            match_env = Environment(env)
+            if self._match_pattern(pattern, value, match_env):
+                return self.exec_node(result, match_env)
+        raise RillRuntimeError(f"No matching pattern for value: {value}", node.line)
+
+    def _exec_ForExpr(self, node: ForExpr, env: Environment) -> Any:
+        iterable = self.exec_node(node.iterable, env)
+        result = None
+        for item in iterable:
+            loop_env = Environment(env)
+            loop_env.set(node.iter_var, item)
+            for stmt in node.body:
+                result = self.exec_node(stmt, loop_env)
+        return result
+
+    def _exec_ReturnExpr(self, node: ReturnExpr, env: Environment) -> Any:
+        if node.value:
+            return self.exec_node(node.value, env)
+        return None
+
+    def _exec_Block(self, node: Block, env: Environment) -> Any:
+        block_env = Environment(env)
+        result = None
+        for stmt in node.stmts:
+            result = self.exec_node(stmt, block_env)
+        return result
+
+    # ── Pattern Matching ─────────────────────────────────
+
+    def _match_pattern(self, pattern: ASTNode, value: Any, env: Environment) -> bool:
+        if isinstance(pattern, IntPattern):
+            return isinstance(value, int) and value == pattern.value
+        if isinstance(pattern, IdentPattern):
+            env.set(pattern.name, value)
+            return True
+        if isinstance(pattern, WildcardPattern):
+            return True
+        if isinstance(pattern, TuplePattern):
+            if not isinstance(value, (tuple, list)):
+                if isinstance(value, tuple):
+                    value = value
+                else:
+                    return False
+            if len(pattern.patterns) != len(value):
+                return False
+            for p, v in zip(pattern.patterns, value):
+                if not self._match_pattern(p, v, env):
+                    return False
+            return True
+        if isinstance(pattern, BoolLit):
+            return value == pattern.value
+        if isinstance(pattern, StringLit):
+            return value == pattern.value
+        return False
+
+    # ── Helpers ──────────────────────────────────────────
+
+    def _to_rill_str(self, value: Any) -> str:
+        if value is None:
+            return "()"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, float):
+            return str(value)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, tuple):
+            inner = ", ".join(self._to_rill_str(v) for v in value)
+            return f"({inner})"
+        if isinstance(value, list):
+            inner = ", ".join(self._to_rill_str(v) for v in value)
+            return f"[{inner}]"
+        if isinstance(value, RillFn):
+            return repr(value)
+        return str(value)

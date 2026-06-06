@@ -1,0 +1,12 @@
+let fib = fn(n: Int) -> Int {
+    match n {
+        0 -> 0,
+        1 -> 1,
+        _ -> fib(n - 1) + fib(n - 2),
+    }
+}
+
+print("Fibonacci sequence:")
+for i in range(0, 15) {
+    print(fib(i))
+}
