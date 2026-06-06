@@ -235,6 +235,9 @@ class Interpreter:
         callee = self.exec_node(node.callee, env)
         args = [self.exec_node(a, env) for a in node.args]
 
+        if isinstance(callee, RillVariant):
+            return RillVariant(callee.enum_name, callee.variant_name, tuple(args))
+
         if isinstance(callee, RillFn):
             # Handle builtins
             if callee.name == "print":
@@ -285,6 +288,14 @@ class Interpreter:
 
     def _exec_DotExpr(self, node: DotExpr, env: Environment) -> Any:
         obj = self.exec_node(node.obj, env)
+        if isinstance(obj, RillEnum):
+            if node.attr not in obj.variants:
+                raise RillRuntimeError(f"Variant '{node.attr}' not found on enum {obj.name}", node.line)
+            return RillVariant(obj.name, node.attr, ())
+        if isinstance(obj, RillInstance):
+            if node.attr not in obj.fields:
+                raise RillRuntimeError(f"Field '{node.attr}' not found on {obj.type_name}", node.line)
+            return obj.fields[node.attr]
         if isinstance(obj, dict):
             if node.attr not in obj:
                 raise RillRuntimeError(f"Key not found: {node.attr}", node.line)
@@ -398,6 +409,93 @@ class Interpreter:
                 parts.append(self._to_rill_str(val))
         return "".join(parts)
 
+    def _exec_StructDef(self, node: StructDef, env: Environment) -> None:
+        env.set(node.name, RillStruct(node.name, node.fields))
+
+    def _exec_EnumDef(self, node: EnumDef, env: Environment) -> None:
+        variants = {}
+        for vname, vfields in node.variants:
+            variants[vname] = vfields
+        env.set(node.name, RillEnum(node.name, variants))
+
+    def _exec_ImplBlock(self, node: ImplBlock, env: Environment) -> None:
+        struct = env.get(node.type_name)
+        if not isinstance(struct, RillStruct):
+            raise RillRuntimeError(f"Cannot impl non-struct type: {node.type_name}", node.line)
+        methods = {}
+        for mname, mfn in node.methods:
+            methods[mname] = RillFn(
+                params=mfn.params,
+                body=mfn.body,
+                closure=env,
+                name=mname,
+            )
+        env.set(f"{node.type_name}_methods", methods)
+
+    def _exec_StructLiteral(self, node: StructLiteral, env: Environment) -> RillInstance:
+        struct = env.get(node.name)
+        if not isinstance(struct, RillStruct):
+            raise RillRuntimeError(f"{node.name} is not a struct", node.line)
+        fields = {}
+        for fname, fval in node.fields:
+            fields[fname] = self.exec_node(fval, env)
+        methods_key = f"{node.name}_methods"
+        methods = {}
+        try:
+            m = env.get(methods_key)
+            if m:
+                methods = m
+        except RillRuntimeError:
+            pass
+        return RillInstance(node.name, fields, methods)
+
+    def _exec_MethodCall(self, node: MethodCall, env: Environment) -> Any:
+        obj = self.exec_node(node.obj, env)
+        args = [self.exec_node(a, env) for a in node.args]
+        # Enum variant construction: Color.Red(3.14)
+        if isinstance(obj, RillEnum):
+            if node.method not in obj.variants:
+                raise RillRuntimeError(f"Variant '{node.method}' not found on enum {obj.name}", node.line)
+            return RillVariant(obj.name, node.method, tuple(args))
+        # Struct static method: Player.new("Hero")
+        if isinstance(obj, RillStruct):
+            methods_key = f"{obj.name}_methods"
+            methods = {}
+            try:
+                m = env.get(methods_key)
+                if m:
+                    methods = m
+            except RillRuntimeError:
+                pass
+            if node.method not in methods:
+                raise RillRuntimeError(f"Method '{node.method}' not found on struct {obj.name}", node.line)
+            method = methods[node.method]
+            method_env = Environment(method.closure)
+            for (pname, _), arg in zip(method.params, args):
+                method_env.set(pname, arg)
+            result = None
+            for stmt in method.body:
+                result = self.exec_node(stmt, method_env)
+                if isinstance(stmt, ReturnExpr):
+                    break
+            return result
+        if not isinstance(obj, RillInstance):
+            raise RillRuntimeError(f"Cannot call method on non-instance: {type(obj).__name__}", node.line)
+        if node.method not in obj.methods:
+            raise RillRuntimeError(f"Method '{node.method}' not found on {obj.type_name}", node.line)
+        method = obj.methods[node.method]
+        # Create method env with self bound
+        method_env = Environment(method.closure)
+        method_env.set("self", obj)
+        for (pname, _), arg in zip(method.params[1:], args):  # skip 'self' param
+            method_env.set(pname, arg)
+        result = None
+        for stmt in method.body:
+            result = self.exec_node(stmt, method_env)
+            if isinstance(stmt, ReturnExpr):
+                break
+        return result
+
     def _exec_ReturnExpr(self, node: ReturnExpr, env: Environment) -> Any:
         if node.value:
             return self.exec_node(node.value, env)
@@ -458,5 +556,10 @@ class Interpreter:
             inner = ", ".join(self._to_rill_str(v) for v in value)
             return f"[{inner}]"
         if isinstance(value, RillFn):
+            return repr(value)
+        if isinstance(value, RillInstance):
+            fields = ", ".join(f"{k}: {self._to_rill_str(v)}" for k, v in value.fields.items())
+            return f"{value.type_name} {{ {fields} }}"
+        if isinstance(value, RillVariant):
             return repr(value)
         return str(value)

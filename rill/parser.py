@@ -259,9 +259,12 @@ class Parser:
         if tok.type == TokenType.BOOL:
             self.advance()
             return BoolLit(tok.value, tok.line)
-        if tok.type == TokenType.IDENT:
-            # Check for struct literal: TypeName { field: val, ... }
-            if self.pos + 1 < len(self.tokens) and self.tokens[self.pos + 1].type == TokenType.LBRACE:
+        if tok.type == TokenType.IDENT or tok.type == TokenType.SELF:
+            # Struct literal: TypeName { field: val, ... } (only capitalized names)
+            if (tok.type == TokenType.IDENT
+                and tok.value[0].isupper()
+                and self.pos + 1 < len(self.tokens)
+                and self.tokens[self.pos + 1].type == TokenType.LBRACE):
                 name = self.advance().value
                 self.advance()  # consume '{'
                 fields = []
@@ -489,8 +492,13 @@ class Parser:
             self.expect(TokenType.LPAREN)
             params = []
             if self.peek().type != TokenType.RPAREN:
-                first = self.expect(TokenType.IDENT).value
-                params.append((first, None))
+                # First param can be 'self' keyword or IDENT
+                if self.peek().type == TokenType.SELF:
+                    params.append(("self", None))
+                    self.advance()
+                else:
+                    first = self.expect(TokenType.IDENT).value
+                    params.append((first, None))
                 while self.peek().type == TokenType.COMMA:
                     self.advance()
                     pname = self.expect(TokenType.IDENT).value
@@ -501,7 +509,7 @@ class Parser:
                 self.advance()
                 return_type = self.parse_type()
             body = self.parse_block()
-            methods.append((method_name, FnExpr(params, body, return_type, tok.line)))
+            methods.append((method_name, FnExpr(params, return_type, body, tok.line)))
             self.skip_newlines()
         self.expect(TokenType.RBRACE)
         return ImplBlock(type_name, methods, tok.line)

@@ -326,3 +326,106 @@ while i < 10 {
 result
 """
         assert run(src) == [1, 2, 4, 5, 7]
+
+
+class TestV03:
+    def test_struct_basic(self):
+        src = """
+struct Point {
+    x: Int,
+    y: Int,
+}
+let p = Point { x: 3, y: 4 }
+p.x + p.y
+"""
+        assert run(src) == 7
+
+    def test_struct_method(self):
+        src = """
+struct Point {
+    x: Int,
+    y: Int,
+}
+impl Point {
+    fn distance(self) {
+        self.x * self.x + self.y * self.y
+    }
+}
+let p = Point { x: 3, y: 4 }
+p.distance()
+"""
+        assert run(src) == 25
+
+    def test_struct_static_method(self):
+        src = """
+struct Point {
+    x: Int,
+    y: Int,
+}
+impl Point {
+    fn new(x, y) {
+        Point { x: x, y: y }
+    }
+}
+let p = Point.new(10, 20)
+p.x
+"""
+        assert run(src) == 10
+
+    def test_enum_basic(self):
+        src = """
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+let c = Color.Green
+"""
+        result = run(src)
+        assert result.variant_name == "Green"
+
+    def test_enum_with_data(self):
+        src = """
+enum Shape {
+    Circle(Float),
+    Rect(Float, Float),
+}
+Shape.Circle(3.14)
+"""
+        result = run(src)
+        assert result.variant_name == "Circle"
+        assert result.data == (3.14,)
+
+    def test_struct_enum_combo(self):
+        src = """
+enum Direction {
+    North,
+    South,
+}
+struct Player {
+    name: String,
+    hp: Int,
+}
+impl Player {
+    fn new(name) {
+        Player { name: name, hp: 100 }
+    }
+    fn is_alive(self) {
+        self.hp > 0
+    }
+}
+let p = Player.new("Hero")
+p.is_alive()
+"""
+        assert run(src) is True
+
+    def test_struct_print(self):
+        src = """
+struct Vec2 {
+    x: Int,
+    y: Int,
+}
+let v = Vec2 { x: 1, y: 2 }
+f"{v}"
+"""
+        assert run(src) == "Vec2 { x: 1, y: 2 }"

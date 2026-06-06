@@ -14,12 +14,13 @@
 
 ## v0.3.0 — Type System
 
-- [ ] **Struct types** — `struct Point { x: Int, y: Int }`
-- [ ] **Enum types** — `enum Color { Red, Green, Blue }`
-- [ ] **Method syntax** — `impl Point { fn distance(self) -> Float { ... } }`
-- [ ] **Type checking pass** — static analysis before interpretation
-- [ ] **Generic functions** — `fn first<T>(list: List<T>) -> T { ... }`
-- [ ] **Option<T> / Result<T, E>** — algebraic data types
+- [x] v0.3.0 — Type System
+  - Struct definitions and instantiation
+  - Enum definitions (with and without data)
+  - Impl blocks with methods (self parameter)
+  - Static methods (Player.new(...))
+  - Instance methods (obj.method())
+  - 49 passing tests
 
 ## v0.4.0 — Standard Library
 
