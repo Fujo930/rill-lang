@@ -87,6 +87,44 @@ class DotExpr(ASTNode):
     line: int = 0
 
 
+@dataclass
+class MethodCall(ASTNode):
+    obj: ASTNode
+    method: str
+    args: list[ASTNode]
+    line: int = 0
+
+
+# ── Type Definitions ─────────────────────────────────────
+
+@dataclass
+class StructDef(ASTNode):
+    name: str
+    fields: list[tuple[str, ASTNode | None]]
+    line: int = 0
+
+
+@dataclass
+class StructLiteral(ASTNode):
+    name: str
+    fields: list[tuple[str, ASTNode]]
+    line: int = 0
+
+
+@dataclass
+class EnumDef(ASTNode):
+    name: str
+    variants: list[tuple[str, list[ASTNode]]]
+    line: int = 0
+
+
+@dataclass
+class ImplBlock(ASTNode):
+    type_name: str
+    methods: list[tuple[str, FnExpr]]
+    line: int = 0
+
+
 # ── Statements ───────────────────────────────────────────
 
 @dataclass

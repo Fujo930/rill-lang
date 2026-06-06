@@ -46,6 +46,12 @@ class Parser:
             return self.parse_let()
         if tok.type == TokenType.FN:
             return self.parse_fn()
+        if tok.type == TokenType.STRUCT:
+            return self.parse_struct()
+        if tok.type == TokenType.ENUM:
+            return self.parse_enum()
+        if tok.type == TokenType.IMPL:
+            return self.parse_impl()
         if tok.type == TokenType.IDENT and self.pos + 1 < len(self.tokens):
             if self.tokens[self.pos + 1].type == TokenType.ASSIGN:
                 name = self.advance().value
@@ -216,7 +222,19 @@ class Parser:
             elif self.peek().type == TokenType.DOT:
                 self.advance()
                 attr = self.expect(TokenType.IDENT).value
-                left = DotExpr(left, attr, left.line)
+                # Check if it's a method call: obj.method(args)
+                if self.peek().type == TokenType.LPAREN:
+                    self.advance()
+                    args = []
+                    if self.peek().type != TokenType.RPAREN:
+                        args.append(self.parse_expr())
+                        while self.peek().type == TokenType.COMMA:
+                            self.advance()
+                            args.append(self.parse_expr())
+                    self.expect(TokenType.RPAREN)
+                    left = MethodCall(left, attr, args, left.line)
+                else:
+                    left = DotExpr(left, attr, left.line)
             elif self.peek().type == TokenType.LBRACKET:
                 self.advance()
                 index = self.parse_expr()
@@ -242,6 +260,22 @@ class Parser:
             self.advance()
             return BoolLit(tok.value, tok.line)
         if tok.type == TokenType.IDENT:
+            # Check for struct literal: TypeName { field: val, ... }
+            if self.pos + 1 < len(self.tokens) and self.tokens[self.pos + 1].type == TokenType.LBRACE:
+                name = self.advance().value
+                self.advance()  # consume '{'
+                fields = []
+                self.skip_newlines()
+                while self.peek().type != TokenType.RBRACE:
+                    field_name = self.expect(TokenType.IDENT).value
+                    self.expect(TokenType.COLON)
+                    value = self.parse_expr()
+                    fields.append((field_name, value))
+                    if self.peek().type == TokenType.COMMA:
+                        self.advance()
+                    self.skip_newlines()
+                self.expect(TokenType.RBRACE)
+                return StructLiteral(name, fields, tok.line)
             self.advance()
             return Ident(tok.value, tok.line)
         if tok.type == TokenType.LPAREN:
@@ -399,3 +433,75 @@ class Parser:
         if self.peek().type not in (TokenType.NEWLINE, TokenType.RBRACE, TokenType.EOF):
             value = self.parse_expr()
         return ReturnExpr(value, tok.line)
+
+    def parse_struct(self) -> StructDef:
+        tok = self.advance()  # consume 'struct'
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LBRACE)
+        fields = []
+        self.skip_newlines()
+        while self.peek().type != TokenType.RBRACE:
+            field_name = self.expect(TokenType.IDENT).value
+            type_ann = None
+            if self.peek().type == TokenType.COLON:
+                self.advance()
+                type_ann = self.parse_type()
+            fields.append((field_name, type_ann))
+            if self.peek().type == TokenType.COMMA:
+                self.advance()
+            self.skip_newlines()
+        self.expect(TokenType.RBRACE)
+        return StructDef(name, fields, tok.line)
+
+    def parse_enum(self) -> EnumDef:
+        tok = self.advance()  # consume 'enum'
+        name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LBRACE)
+        variants = []
+        self.skip_newlines()
+        while self.peek().type != TokenType.RBRACE:
+            variant_name = self.expect(TokenType.IDENT).value
+            fields = []
+            if self.peek().type == TokenType.LPAREN:
+                self.advance()
+                if self.peek().type != TokenType.RPAREN:
+                    fields.append(self.parse_type())
+                    while self.peek().type == TokenType.COMMA:
+                        self.advance()
+                        fields.append(self.parse_type())
+                self.expect(TokenType.RPAREN)
+            variants.append((variant_name, fields))
+            if self.peek().type == TokenType.COMMA:
+                self.advance()
+            self.skip_newlines()
+        self.expect(TokenType.RBRACE)
+        return EnumDef(name, variants, tok.line)
+
+    def parse_impl(self) -> ImplBlock:
+        tok = self.advance()  # consume 'impl'
+        type_name = self.expect(TokenType.IDENT).value
+        self.expect(TokenType.LBRACE)
+        methods = []
+        self.skip_newlines()
+        while self.peek().type != TokenType.RBRACE:
+            self.expect(TokenType.FN)
+            method_name = self.expect(TokenType.IDENT).value
+            self.expect(TokenType.LPAREN)
+            params = []
+            if self.peek().type != TokenType.RPAREN:
+                first = self.expect(TokenType.IDENT).value
+                params.append((first, None))
+                while self.peek().type == TokenType.COMMA:
+                    self.advance()
+                    pname = self.expect(TokenType.IDENT).value
+                    params.append((pname, None))
+            self.expect(TokenType.RPAREN)
+            return_type = None
+            if self.peek().type == TokenType.ARROW:
+                self.advance()
+                return_type = self.parse_type()
+            body = self.parse_block()
+            methods.append((method_name, FnExpr(params, body, return_type, tok.line)))
+            self.skip_newlines()
+        self.expect(TokenType.RBRACE)
+        return ImplBlock(type_name, methods, tok.line)

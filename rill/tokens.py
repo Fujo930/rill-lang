@@ -23,6 +23,10 @@ class TokenType(Enum):
     WHILE = auto()
     BREAK = auto()
     CONTINUE = auto()
+    STRUCT = auto()
+    ENUM = auto()
+    IMPL = auto()
+    SELF = auto()
     RETURN = auto()
     TRUE = auto()
     FALSE = auto()
@@ -77,6 +81,10 @@ KEYWORDS = {
     "while": TokenType.WHILE,
     "break": TokenType.BREAK,
     "continue": TokenType.CONTINUE,
+    "struct": TokenType.STRUCT,
+    "enum": TokenType.ENUM,
+    "impl": TokenType.IMPL,
+    "self": TokenType.SELF,
     "return": TokenType.RETURN,
     "true": TokenType.TRUE,
     "false": TokenType.FALSE,

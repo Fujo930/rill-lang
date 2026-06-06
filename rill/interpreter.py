@@ -67,6 +67,47 @@ class Environment:
         raise RillRuntimeError(f"Undefined variable: {name}")
 
 
+@dataclass
+class RillStruct:
+    name: str
+    fields: list[tuple[str, Any]]
+
+    def __repr__(self):
+        return f"<struct {self.name}>"
+
+
+@dataclass
+class RillEnum:
+    name: str
+    variants: dict[str, list[Any]]
+
+    def __repr__(self):
+        return f"<enum {self.name}>"
+
+
+@dataclass
+class RillVariant:
+    enum_name: str
+    variant_name: str
+    data: tuple
+
+    def __repr__(self):
+        if self.data:
+            return f"{self.variant_name}({', '.join(str(d) for d in self.data)})"
+        return self.variant_name
+
+
+@dataclass
+class RillInstance:
+    type_name: str
+    fields: dict[str, Any]
+    methods: dict[str, RillFn]
+
+    def __repr__(self):
+        fields_str = ", ".join(f"{k}: {v!r}" for k, v in self.fields.items())
+        return f"{self.type_name} {{ {fields_str} }}"
+
+
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
