@@ -1,0 +1,37 @@
+print("=== Factorial with while ===")
+let mut n = 10
+let mut result = 1
+while n > 1 {
+    result = result * n
+    n = n - 1
+}
+print(f"10! = {result}")
+
+print("")
+print("=== Prime sieve (2..30) ===")
+let mut primes = []
+let mut i = 2
+while i <= 30 {
+    let mut is_prime = true
+    let mut j = 2
+    while j * j <= i {
+        if i % j == 0 {
+            is_prime = false
+        }
+        j = j + 1
+    }
+    if is_prime {
+        primes = primes + [i]
+    }
+    i = i + 1
+}
+print(primes)
+
+print("")
+print("=== Break with value ===")
+let mut x = 0
+let found = while true {
+    x = x + 1
+    if x * x > 50 { break x }
+}
+print(f"First x where x*x > 50: {found}")

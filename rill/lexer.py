@@ -71,6 +71,45 @@ class Lexer:
         self.advance()  # closing "
         return "".join(chars)
 
+    def read_fstring(self) -> list[tuple[str, str | None]]:
+        self.advance()  # opening "
+        parts = []
+        current = []
+        depth = 0
+        while self.pos < len(self.source) and (self.source[self.pos] != '"' or depth > 0):
+            ch = self.source[self.pos]
+            if ch == "\\":
+                self.advance()
+                esc = self.advance()
+                escape_map = {"n": "\n", "t": "\t", "\\": "\\", '"': '"'}
+                current.append(escape_map.get(esc, esc))
+                continue
+            if ch == "{" and depth == 0:
+                parts.append(("".join(current), None))
+                current = []
+                self.advance()  # consume '{'
+                expr_chars = []
+                depth = 1
+                while self.pos < len(self.source) and depth > 0:
+                    c = self.source[self.pos]
+                    if c == "{":
+                        depth += 1
+                    elif c == "}":
+                        depth -= 1
+                        if depth == 0:
+                            self.advance()  # consume '}'
+                            break
+                    expr_chars.append(self.advance())
+                parts.append((None, "".join(expr_chars)))
+                continue
+            current.append(self.advance())
+        if self.pos >= len(self.source):
+            raise LexError("Unterminated f-string", self.line, self.col)
+        self.advance()  # closing "
+        if current:
+            parts.append(("".join(current), None))
+        return parts
+
     def read_number(self) -> Token:
         start_col = self.col
         digits = []
@@ -120,6 +159,13 @@ class Lexer:
                 # Collapse consecutive newlines
                 if self.tokens and self.tokens[-1].type != TokenType.NEWLINE:
                     self.tokens.append(Token(TokenType.NEWLINE, "\\n", start_line, start_col))
+                continue
+
+            # F-strings
+            if ch == 'f' and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == '"':
+                self.advance()  # consume 'f'
+                parts = self.read_fstring()
+                self.tokens.append(Token(TokenType.FSTRING, parts, start_line, start_col))
                 continue
 
             # Strings

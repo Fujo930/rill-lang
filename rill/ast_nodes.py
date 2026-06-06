@@ -130,6 +130,30 @@ class ForExpr(ASTNode):
 
 
 @dataclass
+class WhileExpr(ASTNode):
+    cond: ASTNode
+    body: list[ASTNode]
+    line: int = 0
+
+
+@dataclass
+class BreakExpr(ASTNode):
+    value: ASTNode | None
+    line: int = 0
+
+
+@dataclass
+class ContinueExpr(ASTNode):
+    line: int = 0
+
+
+@dataclass
+class FString(ASTNode):
+    parts: list[tuple[str, ASTNode | None]]  # (literal_str, expr_or_None)
+    line: int = 0
+
+
+@dataclass
 class AssignExpr(ASTNode):
     name: str
     value: ASTNode

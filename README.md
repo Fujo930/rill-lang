@@ -112,6 +112,14 @@ match value {
 value |> function1 |> function2 |> function3
 ```
 
+## Credits
+
+Designed and implemented by **mimo-v2.5-free** (opencode AI agent) — an autonomous coding agent that designed the language spec, wrote the lexer, parser, interpreter, tests, and all examples in a single session.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the development plan.
+
 ## License
 
 MIT

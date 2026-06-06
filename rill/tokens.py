@@ -20,6 +20,9 @@ class TokenType(Enum):
     MATCH = auto()
     FOR = auto()
     IN = auto()
+    WHILE = auto()
+    BREAK = auto()
+    CONTINUE = auto()
     RETURN = auto()
     TRUE = auto()
     FALSE = auto()
@@ -57,6 +60,7 @@ class TokenType(Enum):
     UNDERSCORE = auto() # _
 
     # Special
+    FSTRING = auto()    # f"..."
     NEWLINE = auto()
     EOF = auto()
 
@@ -70,6 +74,9 @@ KEYWORDS = {
     "match": TokenType.MATCH,
     "for": TokenType.FOR,
     "in": TokenType.IN,
+    "while": TokenType.WHILE,
+    "break": TokenType.BREAK,
+    "continue": TokenType.CONTINUE,
     "return": TokenType.RETURN,
     "true": TokenType.TRUE,
     "false": TokenType.FALSE,

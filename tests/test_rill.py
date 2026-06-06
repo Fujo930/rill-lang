@@ -227,3 +227,102 @@ results
 
     def test_string_ops(self):
         assert run('"abc" + "def"') == "abcdef"
+
+
+class TestV02:
+    def test_while_loop(self):
+        src = """
+let mut i = 0
+while i < 5 {
+    i = i + 1
+}
+i
+"""
+        assert run(src) == 5
+
+    def test_while_false(self):
+        assert run("while false { 42 }") is None
+
+    def test_break(self):
+        src = """
+let mut i = 0
+while true {
+    if i == 3 { break }
+    i = i + 1
+}
+i
+"""
+        assert run(src) == 3
+
+    def test_break_with_value(self):
+        src = """
+let mut i = 0
+while true {
+    i = i + 1
+    if i == 5 { break i * 2 }
+}
+"""
+        assert run(src) == 10
+
+    def test_continue(self):
+        src = """
+let mut sum = 0
+let mut i = 0
+while i < 10 {
+    i = i + 1
+    if i % 2 == 0 { continue }
+    sum = sum + i
+}
+sum
+"""
+        assert run(src) == 25
+
+    def test_fstring(self):
+        src = 'let x = 42\nf"Value: {x}"'
+        assert run(src) == "Value: 42"
+
+    def test_fstring_expr(self):
+        assert run('f"{2 + 3}"') == "5"
+
+    def test_fstring_nested(self):
+        src = """
+let name = "Rill"
+f"Language: {name}"
+"""
+        assert run(src) == "Language: Rill"
+
+    def test_break_in_for(self):
+        src = """
+let mut sum = 0
+for i in range(1, 100) {
+    if i > 5 { break }
+    sum = sum + i
+}
+sum
+"""
+        assert run(src) == 15
+
+    def test_continue_in_for(self):
+        src = """
+let mut sum = 0
+for i in range(1, 11) {
+    if i % 2 == 0 { continue }
+    sum = sum + i
+}
+sum
+"""
+        assert run(src) == 25
+
+    def test_while_with_break_and_continue(self):
+        src = """
+let mut result = []
+let mut i = 0
+while i < 10 {
+    i = i + 1
+    if i % 3 == 0 { continue }
+    if i == 8 { break }
+    result = result + [i]
+}
+result
+"""
+        assert run(src) == [1, 2, 4, 5, 7]

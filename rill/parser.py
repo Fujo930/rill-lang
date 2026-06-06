@@ -283,6 +283,17 @@ class Parser:
             return self.parse_match()
         if tok.type == TokenType.FOR:
             return self.parse_for()
+        if tok.type == TokenType.WHILE:
+            return self.parse_while()
+        if tok.type == TokenType.BREAK:
+            self.advance()
+            value = None
+            if self.peek().type not in (TokenType.NEWLINE, TokenType.RBRACE, TokenType.EOF):
+                value = self.parse_expr()
+            return BreakExpr(value, tok.line)
+        if tok.type == TokenType.CONTINUE:
+            self.advance()
+            return ContinueExpr(tok.line)
         if tok.type == TokenType.RETURN:
             return self.parse_return()
         if tok.type == TokenType.UNDERSCORE:
@@ -290,6 +301,8 @@ class Parser:
             return WildcardPattern(tok.line)
         if tok.type == TokenType.LBRACE:
             return Block(self.parse_block(), tok.line)
+        if tok.type == TokenType.FSTRING:
+            return self.parse_fstring()
 
         raise ParseError(f"Unexpected token {tok.type.name}: {tok.value!r}", tok)
 
@@ -357,6 +370,28 @@ class Parser:
         iterable = self.parse_expr()
         body = self.parse_block()
         return ForExpr(var_name, iterable, body, tok.line)
+
+    def parse_while(self) -> WhileExpr:
+        tok = self.advance()  # consume 'while'
+        cond = self.parse_expr()
+        body = self.parse_block()
+        return WhileExpr(cond, body, tok.line)
+
+    def parse_fstring(self) -> FString:
+        tok = self.advance()  # consume FSTRING token
+        raw_parts = tok.value  # list of (literal_str, expr_str_or_None)
+        parts = []
+        for lit, expr in raw_parts:
+            if expr is not None:
+                # Parse the expression string
+                from .lexer import Lexer
+                expr_tokens = Lexer(expr).tokenize()
+                expr_parser = Parser(expr_tokens)
+                parsed_expr = expr_parser.parse_expr()
+                parts.append((lit, parsed_expr))
+            else:
+                parts.append((lit, None))
+        return FString(parts, tok.line)
 
     def parse_return(self) -> ReturnExpr:
         tok = self.advance()  # consume 'return'

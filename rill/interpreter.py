@@ -10,6 +10,15 @@ class RillRuntimeError(Exception):
         self.line = line
 
 
+class BreakSignal(Exception):
+    def __init__(self, value=None):
+        self.value = value
+
+
+class ContinueSignal(Exception):
+    pass
+
+
 @dataclass
 class RillFn:
     params: list[tuple[str, ASTNode | None]]
@@ -306,9 +315,47 @@ class Interpreter:
         for item in iterable:
             loop_env = Environment(env)
             loop_env.set(node.iter_var, item)
-            for stmt in node.body:
-                result = self.exec_node(stmt, loop_env)
+            try:
+                for stmt in node.body:
+                    result = self.exec_node(stmt, loop_env)
+            except BreakSignal as e:
+                result = e.value
+                break
+            except ContinueSignal:
+                continue
         return result
+
+    def _exec_WhileExpr(self, node: WhileExpr, env: Environment) -> Any:
+        result = None
+        while self.exec_node(node.cond, env):
+            try:
+                for stmt in node.body:
+                    result = self.exec_node(stmt, env)
+            except BreakSignal as e:
+                result = e.value
+                break
+            except ContinueSignal:
+                continue
+        return result
+
+    def _exec_BreakExpr(self, node: BreakExpr, env: Environment) -> Any:
+        value = None
+        if node.value:
+            value = self.exec_node(node.value, env)
+        raise BreakSignal(value)
+
+    def _exec_ContinueExpr(self, node: ContinueExpr, env: Environment) -> Any:
+        raise ContinueSignal()
+
+    def _exec_FString(self, node: FString, env: Environment) -> str:
+        parts = []
+        for lit, expr in node.parts:
+            if lit:
+                parts.append(lit)
+            if expr is not None:
+                val = self.exec_node(expr, env)
+                parts.append(self._to_rill_str(val))
+        return "".join(parts)
 
     def _exec_ReturnExpr(self, node: ReturnExpr, env: Environment) -> Any:
         if node.value:
